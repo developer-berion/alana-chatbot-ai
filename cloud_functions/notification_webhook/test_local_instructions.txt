@@ -1,0 +1,62 @@
+const { sendNotification } = require('./index');
+const EventEmitter = require('events');
+
+// Mock Request and Response
+class MockResponse extends EventEmitter {
+  constructor() {
+    super();
+    this.statusCode = 200;
+  }
+  status(code) {
+    this.statusCode = code;
+    return this;
+  }
+  json(body) {
+    this.emit('json', { status: this.statusCode, body });
+    return this;
+  }
+  send(body) {
+    this.emit('send', { status: this.statusCode, body });
+    return this;
+  }
+}
+
+async function runTests() {
+  console.log('--- STARTING LOCAL TESTS ---');
+
+  // Test 1: Kill Switch
+  console.log('\n[TEST 1] Checking Kill Switch...');
+  process.env.KILL_SWITCH_ACTIVE = 'true';
+  const req1 = { method: 'POST', body: {} };
+  const res1 = new MockResponse();
+  
+  res1.on('json', (data) => {
+    if (data.status === 503 && data.body.error.includes('suspended')) {
+      console.log('✅ Kill Switch Passed: 503 Service Unavailable returned.');
+    } else {
+      console.error('❌ Kill Switch Failed:', data);
+    }
+  });
+  
+  // Hacky way to call the http function which is normally wrapped by framework
+  // We need to import the file which registers the function, but since we are just
+  // importing the handler (if exported? No, index.js registers it).
+  // Actually index.js uses functions.http('name', handler). 
+  
+  // To test this properly without functions-framework running, we need to export the handler
+  // or use the functions framework locally. The simplest modification to index.js
+  // to make it testable is to export the handler.
+  
+  // Wait, I can't change index.js structure too much if it breaks Deployment.
+  // functions-framework allows `module.exports = { sendNotification }` if written that way,
+  // but currently it registers it.
+  
+  // Let's use `functions-framework` to run it in background and `curl` it?
+  // No, `functions-framework` cli is better.
+}
+
+console.log('To run tests properly, usage:');
+console.log('1. Create .env file with SMTP credentials.');
+console.log('2. npm start');
+console.log('3. In another terminal: curl -X POST http://localhost:8080 -H "Content-Type: application/json" -d "..."');
+
